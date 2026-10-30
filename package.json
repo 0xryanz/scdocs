@@ -4,8 +4,26 @@
   "description": "Turn Solidity artifacts into a Swagger-like, wallet-connected contract playground.",
   "type": "module",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/0xryanz/scdocs.git"
+  },
+  "homepage": "https://github.com/0xryanz/scdocs#readme",
+  "bugs": {
+    "url": "https://github.com/0xryanz/scdocs/issues"
+  },
+  "keywords": [
+    "solidity",
+    "ethereum",
+    "documentation",
+    "abi",
+    "natspec",
+    "foundry",
+    "hardhat",
+    "viem"
+  ],
   "bin": {
-    "scdocs": "./dist/cli.js"
+    "scdocs": "dist/cli.js"
   },
   "exports": {
     ".": "./dist/index.js",
