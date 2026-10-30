@@ -116,6 +116,26 @@ export interface ContractDoc {
   custom: Record<string, string>
   /** Number of functions without any NatSpec, used to render a hint. */
   undocumentedCount: number
+  /** Contract id of the implementation whose ABI documents this proxy. */
+  proxyTargetId?: string
+}
+
+export interface DocsPage {
+  slug: string
+  title: string
+  description?: string
+  /** Rendered, trusted HTML (authored by the docs owner). */
+  html: string
+  file?: string
+}
+
+export interface DocsBrand {
+  /** CSS color for links, buttons and active states. */
+  color?: string
+  /** Optional logo URL used in the top bar. */
+  logo?: string
+  /** Optional footer line shown in the sidebar. */
+  footer?: string
 }
 
 export interface NativeCurrency {
@@ -156,6 +176,10 @@ export interface DocsBundle {
   description?: string
   chains: ChainDoc[]
   contracts: ContractDoc[]
+  /** Authored overview / architecture pages. */
+  pages?: DocsPage[]
+  /** Site branding hooks. */
+  brand?: DocsBrand
   ui?: { defaultChain?: string; expandAll?: boolean }
 }
 

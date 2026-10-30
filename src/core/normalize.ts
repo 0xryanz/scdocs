@@ -31,7 +31,7 @@ export function attachDocs(params: ParamDoc[], docs: Record<string, string> | un
   if (keys.length === 0) return
 
   for (const p of params) {
-    if (p.name && docs[p.name] !== undefined) p.description = docs[p.name]
+    if (p.name && Object.hasOwn(docs, p.name)) p.description = docs[p.name]
   }
 
   if (params.length > 0 && params.every((p) => !p.name)) {
@@ -63,7 +63,8 @@ function pickPrefixed(docs: Record<string, string>, prefix: string): Record<stri
   return Object.keys(out).length > 0 ? out : undefined
 }
 
-function applyReturnDocs(outputs: ParamDoc[], returns: string[]): void {
+function applyReturnDocs(outputs: ParamDoc[], returns: string[] | undefined): void {
+  if (!returns) return
   outputs.forEach((p, i) => {
     if (returns[i]) p.description = returns[i]
   })

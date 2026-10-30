@@ -8,6 +8,9 @@ import { mkdir, mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { buildBundle } from '../src/core/build'
+import { compareBundles, coverageOf } from '../src/core/check'
+import { toLlms, toMcp } from '../src/core/exports'
+import { renderMarkdown } from '../src/core/markdown'
 import { toOpenApi } from '../src/core/openapi'
 
 let failures = 0
@@ -138,6 +141,38 @@ async function main() {
 
   const spec = toOpenApi(bundle)
   check('openapi has paths', Object.keys(spec.paths as object).length === 2)
+
+  console.log('\nfeature helpers')
+  const coverage = coverageOf(bundle)
+  check(
+    'coverage counts functions',
+    coverage.functions === 2 && coverage.documented === 2 && coverage.undocumented === 0,
+    coverage,
+  )
+  const diff = compareBundles(bundle, bundle)
+  check(
+    'no self ABI diff',
+    diff.contractsAdded.length === 0 &&
+      diff.contractsRemoved.length === 0 &&
+      diff.contractsChanged.length === 0,
+    diff,
+  )
+  const llms = toLlms(bundle)
+  check('llms export contains contract', llms.includes('### Registry'), llms.slice(0, 80))
+  const mcp = toMcp(bundle) as { tools?: unknown[]; contracts?: unknown[] }
+  check('mcp export contains tools', mcp.tools?.length === 2 && mcp.contracts?.length === 1)
+  const markdown = renderMarkdown(
+    '# Title\n\n**bold** and `code`\n\n| A | B |\n| --- | --- |\n| 1 | 2 |\n\n- one\n- two',
+  )
+  check(
+    'markdown headings, emphasis, table and list',
+    markdown.includes('<h1') &&
+      markdown.includes('<strong>bold</strong>') &&
+      markdown.includes('<code>code</code>') &&
+      markdown.includes('<table>') &&
+      markdown.includes('<li>one</li>'),
+    markdown,
+  )
 
   console.log(
     failures === 0

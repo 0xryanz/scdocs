@@ -5,9 +5,11 @@ import { Icon } from './Icon'
 interface SidebarProps {
   bundle: DocsBundle
   activeId?: string
+  activePageSlug?: string
   query: string
   onQuery(value: string): void
   onNavigate(contractId: string, anchor?: string): void
+  onNavigatePage(slug: string): void
   className?: string
 }
 
@@ -16,7 +18,16 @@ interface Match {
   functions: Array<{ id: string; label: string }>
 }
 
-export function Sidebar({ bundle, activeId, query, onQuery, onNavigate, className }: SidebarProps) {
+export function Sidebar({
+  bundle,
+  activeId,
+  activePageSlug,
+  query,
+  onQuery,
+  onNavigate,
+  onNavigatePage,
+  className,
+}: SidebarProps) {
   const term = query.trim().toLowerCase()
 
   const matches = useMemo<Match[]>(() => {
@@ -43,6 +54,17 @@ export function Sidebar({ bundle, activeId, query, onQuery, onNavigate, classNam
     return out
   }, [bundle, term])
 
+  const pageMatches = useMemo(
+    () =>
+      (bundle.pages ?? []).filter(
+        (page) =>
+          !term ||
+          page.title.toLowerCase().includes(term) ||
+          (page.description ?? '').toLowerCase().includes(term),
+      ),
+    [bundle.pages, term],
+  )
+
   return (
     <aside className={`sidebar${className ? ` ${className}` : ''}`}>
       <div className="search-wrap">
@@ -62,6 +84,22 @@ export function Sidebar({ bundle, activeId, query, onQuery, onNavigate, classNam
           </button>
         ) : null}
       </div>
+
+      {pageMatches.length > 0 ? (
+        <>
+          <div className="nav-group-label">Pages</div>
+          {pageMatches.map((page) => (
+            <button
+              key={page.slug}
+              className={`nav-item${page.slug === activePageSlug ? ' active' : ''}`}
+              onClick={() => onNavigatePage(page.slug)}
+              title={page.description}
+            >
+              <span className="nav-item-name">{page.title}</span>
+            </button>
+          ))}
+        </>
+      ) : null}
 
       <div className="nav-group-label">
         {term ? `${matches.length} match${matches.length === 1 ? '' : 'es'}` : 'Contracts'}
@@ -103,6 +141,9 @@ export function Sidebar({ bundle, activeId, query, onQuery, onNavigate, classNam
           {bundle.contracts.length} contracts · {bundle.frameworks.join(' + ') || 'no build'}
         </div>
         <div style={{ marginTop: 4 }}>abi {bundle.abiHash.slice(2, 10)}</div>
+        {bundle.brand?.footer ? (
+          <div style={{ marginTop: 8, color: 'var(--text-faint)' }}>{bundle.brand.footer}</div>
+        ) : null}
       </div>
     </aside>
   )

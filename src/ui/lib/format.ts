@@ -63,6 +63,11 @@ export function castSignature(fn: FunctionDoc): string {
   return `'${base}'`
 }
 
+/** The DOM id FunctionCard uses, shared with the method navigation. */
+export function functionAnchor(fn: FunctionDoc): string {
+  return `fn-${fn.selector.slice(2)}`
+}
+
 export function castCommand(
   address: string,
   fn: FunctionDoc,

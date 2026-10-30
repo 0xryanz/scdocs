@@ -48,6 +48,31 @@ const PATHS: Record<string, ReactNode> = {
   ),
   play: <path d="M5.5 3.5L12 8l-6.5 4.5z" fill="currentColor" stroke="none" />,
   code: <path d="M5.5 5L2.5 8l3 3M10.5 5l3 3-3 3" />,
+  link: (
+    <>
+      <path d="M6.5 9.5l3-3" />
+      <path d="M7 4.5l1-1a2.1 2.1 0 0 1 3 3l-1 1" />
+      <path d="M9 11.5l-1 1a2.1 2.1 0 0 1-3-3l1-1" />
+    </>
+  ),
+  logs: (
+    <>
+      <path d="M3 4h10M3 8h10M3 12h6" />
+      <circle cx="12" cy="12" r="1" fill="currentColor" stroke="none" />
+    </>
+  ),
+  proxy: (
+    <>
+      <path d="M8 2.5l5 2.8-5 2.8-5-2.8z" />
+      <path d="M3 8.2l5 2.8 5-2.8M3 11l5 2.8 5-2.8" />
+    </>
+  ),
+  braces: (
+    <>
+      <path d="M6 2.8c-1.3 0-2 .7-2 2v1.5c0 .9-.4 1.4-1.3 1.5.9.1 1.3.6 1.3 1.5v1.4c0 1.3.7 2 2 2" />
+      <path d="M10 2.8c1.3 0 2 .7 2 2v1.5c0 .9.4 1.4 1.3 1.5-.9.1-1.3.6-1.3 1.5v1.4c0 1.3-.7 2-2 2" />
+    </>
+  ),
   alert: (
     <>
       <path d="M8 2.5L14 13H2z" />

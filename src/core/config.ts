@@ -33,6 +33,26 @@ export interface ScdocsConfig {
   /** Only include contracts whose name or file matches one of these globs. */
   include?: string[]
   exclude?: string[]
+  /** Include contracts extracted from `lib/` / `node_modules/`. Default false. */
+  includeDependencies?: boolean
+  /** Contract names/ids in the order they should appear in the sidebar. */
+  order?: string[]
+  /** Proxy contract -> implementation contract, using names or `file:Name`. */
+  proxies?: Record<string, string>
+  pages?: Array<{
+    slug?: string
+    title?: string
+    description?: string
+    /** Markdown file, relative to the project root. */
+    file?: string
+    /** Inline Markdown, used when `file` is absent. */
+    content?: string
+  }>
+  brand?: {
+    color?: string
+    logo?: string
+    footer?: string
+  }
   chains?: ChainConfig[]
   foundry?: { out?: string }
   hardhat?: { buildInfo?: string; artifacts?: string }

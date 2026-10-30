@@ -44,7 +44,18 @@ export function TopBar({ bundle, chain, chainKey, onChainKey, onOpenSettings, on
       </button>
 
       <div className="brand">
-        <div className="brand-mark" />
+        <div
+          className="brand-mark"
+          style={
+            bundle.brand?.logo
+              ? {
+                  backgroundImage: `url(${JSON.stringify(bundle.brand.logo)})`,
+                  backgroundSize: 'cover',
+                  backgroundPosition: 'center',
+                }
+              : undefined
+          }
+        />
         <div className="brand-name">{bundle.title}</div>
       </div>
 

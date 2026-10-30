@@ -3,6 +3,7 @@ import type { ContractDoc, DocsBundle, Hex } from '../shared/types'
 import { DocsContext, type DocsContextValue } from './context'
 import { ContractView } from './components/ContractView'
 import { Icon } from './components/Icon'
+import { PageView } from './components/PageView'
 import { SettingsDrawer } from './components/Settings'
 import { Sidebar } from './components/Sidebar'
 import { TopBar } from './components/TopBar'
@@ -11,6 +12,7 @@ import { makePublicClient, makeWalletClient } from './lib/clients'
 import { initialChainKey, resolveChain, resolveExplorer, resolveRpc } from './lib/chains'
 import { loadBundle } from './lib/data'
 import { isAddress } from './lib/format'
+import { contractRoute, pageRoute, readRoute, writeRoute } from './lib/hash'
 import { addressKey, loadSettings, saveSettings, type Settings } from './lib/storage'
 
 interface Toast {
@@ -67,9 +69,26 @@ export function App() {
 
 function DocsApp({ bundle }: { bundle: DocsBundle }) {
   const wallet = useWallet()
+  const initialRoute = readRoute()
+  const initialContract =
+    initialRoute?.kind === 'contract'
+      ? bundle.contracts.find((item) => item.id === initialRoute.contractId)
+      : undefined
+  const initialPage =
+    initialRoute?.kind === 'page'
+      ? bundle.pages?.find((item) => item.slug === initialRoute.slug)
+      : undefined
+
   const [settings, setSettings] = useState<Settings>(loadSettings)
   const [query, setQuery] = useState('')
-  const [activeId, setActiveId] = useState<string | undefined>(bundle.contracts[0]?.id)
+  const [activeId, setActiveId] = useState<string | undefined>(
+    initialContract?.id ?? bundle.contracts[0]?.id,
+  )
+  const [activePageSlug, setActivePageSlug] = useState<string | undefined>(initialPage?.slug)
+  const [anchor, setAnchor] = useState<string | undefined>(
+    initialRoute?.kind === 'contract' ? initialRoute.anchor : undefined,
+  )
+  const [navNonce, setNavNonce] = useState(0)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [toasts, setToasts] = useState<Toast[]>([])
@@ -101,10 +120,6 @@ function DocsApp({ bundle }: { bundle: DocsBundle }) {
   useEffect(() => {
     saveSettings(settings)
   }, [settings])
-
-  useEffect(() => {
-    document.title = bundle.title
-  }, [bundle.title])
 
   useEffect(() => {
     applyTheme(settings.theme)
@@ -160,17 +175,76 @@ function DocsApp({ bundle }: { bundle: DocsBundle }) {
 
   const navigate = useCallback((contractId: string, anchor?: string) => {
     setActiveId(contractId)
+    setActivePageSlug(undefined)
+    setAnchor(anchor)
+    setNavNonce((value) => value + 1)
     setSidebarOpen(false)
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        if (anchor) {
-          document.getElementById(anchor)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-        } else {
-          window.scrollTo({ top: 0, behavior: 'smooth' })
-        }
-      })
-    })
+    writeRoute(contractRoute(contractId, anchor), 'push')
+    if (!anchor) window.scrollTo({ top: 0, behavior: 'smooth' })
   }, [])
+
+  const navigatePage = useCallback((slug: string) => {
+    setActivePageSlug(slug)
+    setAnchor(undefined)
+    setNavNonce((value) => value + 1)
+    setSidebarOpen(false)
+    writeRoute(pageRoute(slug), 'push')
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }, [])
+
+  const activePage = useMemo(
+    () => bundle.pages?.find((page) => page.slug === activePageSlug),
+    [bundle.pages, activePageSlug],
+  )
+
+  useEffect(() => {
+    const onRoute = () => {
+      const route = readRoute()
+      if (!route) return
+      if (route.kind === 'page') {
+        const page = bundle.pages?.find((item) => item.slug === route.slug)
+        if (!page) return
+        setActivePageSlug(page.slug)
+        setAnchor(undefined)
+        setNavNonce((value) => value + 1)
+        window.scrollTo({ top: 0, behavior: 'smooth' })
+        return
+      }
+      const target = bundle.contracts.find((item) => item.id === route.contractId)
+      if (!target) return
+      setActiveId(target.id)
+      setActivePageSlug(undefined)
+      setAnchor(route.anchor)
+      setNavNonce((value) => value + 1)
+    }
+    window.addEventListener('popstate', onRoute)
+    window.addEventListener('hashchange', onRoute)
+    return () => {
+      window.removeEventListener('popstate', onRoute)
+      window.removeEventListener('hashchange', onRoute)
+    }
+  }, [bundle])
+
+  useEffect(() => {
+    if (activePage || !anchor) return
+    const frame = requestAnimationFrame(() => {
+      document.getElementById(anchor)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      window.dispatchEvent(new CustomEvent('scdocs:open-function', { detail: anchor }))
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [activeId, activePageSlug, activePage, anchor, navNonce])
+
+  useEffect(() => {
+    document.title = activePage ? `${activePage.title} · ${bundle.title}` : bundle.title
+  }, [bundle.title, activePage])
+
+  useEffect(() => {
+    const color = bundle.brand?.color
+    if (!color) return
+    const root = document.documentElement
+    root.style.setProperty('--accent', color)
+    root.style.setProperty('--accent-soft', `color-mix(in srgb, ${color} 16%, transparent)`)
+  }, [bundle.brand?.color])
 
   const expandAll = settings.expandAll ?? bundle.ui?.expandAll ?? false
 
@@ -191,6 +265,7 @@ function DocsApp({ bundle }: { bundle: DocsBundle }) {
     addressFor,
     savedAddressFor,
     setAddressFor,
+    openContract: navigate,
     expandAll,
     notify,
   }
@@ -211,23 +286,29 @@ function DocsApp({ bundle }: { bundle: DocsBundle }) {
 
         <Sidebar
           bundle={bundle}
-          activeId={contract?.id}
+          activeId={activePage ? undefined : contract?.id}
+          activePageSlug={activePage?.slug}
           query={query}
           onQuery={setQuery}
           onNavigate={navigate}
+          onNavigatePage={navigatePage}
           className={sidebarOpen ? 'mobile-open' : undefined}
         />
 
         <main className="content">
-          <div className="content-inner">
-            {wallet.error ? (
+          <div
+            className={`content-inner${
+              !activePage && contract && contract.functions.length > 0 ? ' with-method-nav' : ''
+            }`}
+          >
+            {!activePage && wallet.error ? (
               <div className="banner danger">
                 <Icon name="alert" size={14} style={{ marginTop: 2 }} />
                 <div>{wallet.error}</div>
               </div>
             ) : null}
 
-            {!rpcUrl ? (
+            {!activePage && !rpcUrl ? (
               <div className="banner">
                 <Icon name="alert" size={14} style={{ marginTop: 2 }} />
                 <div>
@@ -240,7 +321,9 @@ function DocsApp({ bundle }: { bundle: DocsBundle }) {
               </div>
             ) : null}
 
-            {contract ? (
+            {activePage ? (
+              <PageView page={activePage} />
+            ) : contract ? (
               <ContractView contract={contract} />
             ) : (
               <div className="empty">

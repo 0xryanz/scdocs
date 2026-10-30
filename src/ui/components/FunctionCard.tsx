@@ -10,7 +10,10 @@ import {
   type PayableUnit,
 } from '../lib/coerce'
 import { decodeRevert, type DecodedError } from '../lib/errors'
-import { castCommand, prettyJson } from '../lib/format'
+import { castCommand, functionAnchor, isAddress, prettyJson } from '../lib/format'
+import { contractRoute, readRoute, writeRoute } from '../lib/hash'
+import { CodeExamples } from './CodeExamples'
+import { CopyButton } from './CopyButton'
 import { Field } from './Field'
 import { Icon } from './Icon'
 import { ValueList } from './Value'
@@ -37,10 +40,25 @@ export function FunctionCard({ contract, fn }: { contract: ContractDoc; fn: Func
   const [state, setState] = useState<CallState>({ phase: 'idle' })
   const [showRaw, setShowRaw] = useState(false)
   const [showCast, setShowCast] = useState(false)
+  const [showExamples, setShowExamples] = useState(false)
+  const [callAs, setCallAs] = useState('')
 
   useEffect(() => {
     setOpen(ctx.expandAll)
   }, [ctx.expandAll])
+
+  useEffect(() => {
+    const onOpen = (event: Event) => {
+      if ((event as CustomEvent<string>).detail === functionAnchor(fn)) setOpen(true)
+    }
+    window.addEventListener('scdocs:open-function', onOpen)
+    return () => window.removeEventListener('scdocs:open-function', onOpen)
+  }, [fn])
+
+  useEffect(() => {
+    const route = readRoute()
+    if (route?.kind === 'contract' && route.anchor === functionAnchor(fn)) setOpen(true)
+  }, [fn])
 
   const address = ctx.addressFor(contract)
   const busy = BUSY.includes(state.phase)
@@ -58,6 +76,15 @@ export function FunctionCard({ contract, fn }: { contract: ContractDoc; fn: Func
       return null
     }
   }, [fn, values, address])
+
+  const exampleValue = useMemo(() => {
+    if (fn.mutability !== 'payable') return undefined
+    try {
+      return parseAmount(amount, unit)
+    } catch {
+      return undefined
+    }
+  }, [fn.mutability, amount, unit])
 
   async function run() {
     if (!address) {
@@ -83,6 +110,18 @@ export function FunctionCard({ contract, fn }: { contract: ContractDoc; fn: Func
     }
 
     if (isRead) {
+      const from = callAs.trim()
+      if (from && !isAddress(from)) {
+        setState({
+          phase: 'error',
+          error: {
+            kind: 'unknown',
+            title: 'Invalid call-as address',
+            detail: 'Use a 0x-prefixed 20-byte address, or leave the field empty.',
+          },
+        })
+        return
+      }
       setState({ phase: 'calling' })
       try {
         const result = await ctx.publicClient.readContract({
@@ -90,7 +129,7 @@ export function FunctionCard({ contract, fn }: { contract: ContractDoc; fn: Func
           abi: [fn.abi] as Abi,
           functionName: fn.name,
           args,
-          account: ctx.account,
+          account: from ? (from as Hex) : ctx.account,
         } as any)
         setState({ phase: 'ok', value: result })
       } catch (error) {
@@ -183,6 +222,18 @@ export function FunctionCard({ contract, fn }: { contract: ContractDoc; fn: Func
     setShowRaw(false)
   }
 
+  async function copyLink() {
+    const route = contractRoute(contract.id, functionAnchor(fn))
+    writeRoute(route, 'replace')
+    const url = `${window.location.href.split('#')[0]}${route}`
+    try {
+      await navigator.clipboard.writeText(url)
+      ctx.notify('Method link copied')
+    } catch {
+      ctx.notify('Clipboard blocked — copy the URL from the address bar', 'error')
+    }
+  }
+
   const mutabilityBadge = isRead ? (
     <span className="badge badge-read">{fn.mutability}</span>
   ) : (
@@ -192,7 +243,7 @@ export function FunctionCard({ contract, fn }: { contract: ContractDoc; fn: Func
   return (
     <div
       className={`fn${busy ? ' running' : ''}`}
-      id={domId(fn)}
+      id={functionAnchor(fn)}
       data-write={String(!isRead)}
     >
       <div className="fn-head" onClick={() => setOpen((prev) => !prev)}>
@@ -263,6 +314,20 @@ export function FunctionCard({ contract, fn }: { contract: ContractDoc; fn: Func
             </div>
           )}
 
+          {isRead ? (
+            <div className="value-row call-as-row">
+              <span className="hint">call as</span>
+              <input
+                className={`input${callAs.trim() && !isAddress(callAs.trim()) ? ' invalid' : ''}`}
+                value={callAs}
+                spellCheck={false}
+                placeholder={ctx.account ?? '0x… (optional)'}
+                onChange={(event) => setCallAs(event.target.value)}
+              />
+              <span className="hint">simulate from this address</span>
+            </div>
+          ) : null}
+
           {fn.mutability === 'payable' ? (
             <div className="value-row">
               <span className="hint">msg.value</span>
@@ -308,6 +373,24 @@ export function FunctionCard({ contract, fn }: { contract: ContractDoc; fn: Func
             >
               <Icon name="code" size={13} />
               {showCast ? 'Hide' : 'cast'}
+            </button>
+
+            <button
+              className="btn btn-ghost btn-sm"
+              onClick={() => setShowExamples((prev) => !prev)}
+              title="TypeScript call examples for this function"
+            >
+              <Icon name="braces" size={13} />
+              {showExamples ? 'Hide examples' : 'Examples'}
+            </button>
+
+            <button
+              className="btn btn-ghost btn-sm"
+              onClick={copyLink}
+              title="Copy a deep link to this method"
+            >
+              <Icon name="link" size={13} />
+              link
             </button>
 
             <span className="actions-spacer" />
@@ -416,14 +499,19 @@ export function FunctionCard({ contract, fn }: { contract: ContractDoc; fn: Func
               </div>
             </div>
           ) : null}
+
+          {showExamples ? (
+            <CodeExamples
+              contract={contract}
+              fn={fn}
+              values={values}
+              value={exampleValue}
+            />
+          ) : null}
         </div>
       ) : null}
     </div>
   )
-}
-
-function domId(fn: FunctionDoc): string {
-  return `fn-${fn.selector.slice(2)}`
 }
 
 function labelFor(phase: Phase, isRead: boolean): string {
@@ -447,28 +535,5 @@ function TxLink({ hash }: { hash: Hex }) {
     >
       explorer <Icon name="external" size={11} />
     </a>
-  )
-}
-
-function CopyButton({ text }: { text: string }) {
-  const [copied, setCopied] = useState(false)
-  return (
-    <button
-      className="btn btn-ghost btn-sm"
-      title="Copy"
-      onClick={async (event) => {
-        event.stopPropagation()
-        try {
-          await navigator.clipboard.writeText(text)
-          setCopied(true)
-          setTimeout(() => setCopied(false), 1200)
-        } catch {
-          /* clipboard blocked */
-        }
-      }}
-    >
-      <Icon name={copied ? 'check' : 'copy'} size={12} />
-      {copied ? 'copied' : 'copy'}
-    </button>
   )
 }

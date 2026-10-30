@@ -1,11 +1,13 @@
 import { existsSync } from 'node:fs'
-import { join } from 'node:path'
+import { readFile } from 'node:fs/promises'
+import { basename, extname, join, resolve } from 'node:path'
 import { keccak256, toHex } from 'viem'
-import type { ChainDoc, ContractDoc, DocsBundle, Hex } from '../shared/types.js'
+import type { ChainDoc, ContractDoc, DocsBundle, DocsPage, Hex } from '../shared/types.js'
 import { loadConfig, matchesGlob, type ScdocsConfig } from './config.js'
 import { extractFoundry } from './extract/foundry.js'
 import { extractHardhat } from './extract/hardhat.js'
 import { dedupe } from './extract/files.js'
+import { renderMarkdown, slugify } from './markdown.js'
 import { normalizeContract, type RawContract } from './normalize.js'
 
 export interface BuildOptions {
@@ -53,13 +55,19 @@ export async function buildBundle(options: BuildOptions = {}): Promise<BuildResu
   }
 
   const selected = dedupe(raw).filter((item) => isIncluded(item, config))
-  const contracts = selected.map(normalizeContract).sort((a, b) => a.name.localeCompare(b.name))
+  const contracts = orderContracts(
+    selected.map(normalizeContract).sort((a, b) => a.name.localeCompare(b.name)),
+    config.order,
+    warnings,
+  )
+  applyProxies(contracts, config.proxies, warnings)
 
   if (contracts.length === 0) {
     warnings.push('No contracts matched. Check "include" / "exclude" in your config.')
   }
 
   const chains = buildChains(config, contracts, warnings)
+  const pages = await buildPages(root, config.pages, warnings)
 
   const bundle: DocsBundle = {
     schemaVersion: 1,
@@ -72,6 +80,8 @@ export async function buildBundle(options: BuildOptions = {}): Promise<BuildResu
     description: config.description,
     chains,
     contracts,
+    pages: pages.length > 0 ? pages : undefined,
+    brand: config.brand && Object.values(config.brand).some(Boolean) ? config.brand : undefined,
     ui: config.ui,
   }
 
@@ -97,6 +107,8 @@ function detectFrameworks(root: string, config: ScdocsConfig): Array<'foundry' |
 }
 
 function isIncluded(item: RawContract, config: ScdocsConfig): boolean {
+  if (!config.includeDependencies && isDependencyFile(item.file)) return false
+
   const targets = [item.name, item.file, `${item.file}:${item.name}`]
   const hit = (pattern: string) => targets.some((t) => matchesGlob(pattern, t))
 
@@ -107,6 +119,129 @@ function isIncluded(item: RawContract, config: ScdocsConfig): boolean {
     if (config.exclude.some(hit)) return false
   }
   return true
+}
+
+/** Foundry and Hardhat dependency folders, excluded unless explicitly opted in. */
+const DEPENDENCY_DIRS = new Set([
+  'lib',
+  'node_modules',
+  '.deps',
+  'dependencies',
+  'vendor',
+])
+
+function isDependencyFile(file: string): boolean {
+  const normalized = file.replace(/\\/g, '/').replace(/^\.\//, '')
+  const head = normalized.split('/')[0]
+  return DEPENDENCY_DIRS.has(head)
+}
+
+function orderContracts(
+  contracts: ContractDoc[],
+  order: string[] | undefined,
+  warnings: string[],
+): ContractDoc[] {
+  if (!order?.length) return contracts
+
+  const used = new Set<string>()
+  const sorted: ContractDoc[] = []
+  for (const key of order) {
+    const matches = contracts.filter((contract) => !used.has(contract.id) && matchesContract(contract, key))
+    if (matches.length === 0) {
+      warnings.push(`Contract "${key}" from "order" is not in the build output.`)
+      continue
+    }
+    if (matches.length > 1) {
+      warnings.push(
+        `"${key}" in "order" is ambiguous (${matches.map((match) => match.file).join(', ')}). ` +
+          `Use "file:Name".`,
+      )
+    }
+    const chosen = matches[0]
+    used.add(chosen.id)
+    sorted.push(chosen)
+  }
+
+  for (const contract of contracts) {
+    if (!used.has(contract.id)) sorted.push(contract)
+  }
+  return sorted
+}
+
+function applyProxies(
+  contracts: ContractDoc[],
+  proxies: Record<string, string> | undefined,
+  warnings: string[],
+): void {
+  if (!proxies) return
+  for (const [proxyKey, implementationKey] of Object.entries(proxies)) {
+    const proxyMatches = contracts.filter((contract) => matchesContract(contract, proxyKey))
+    const implementationMatches = contracts.filter((contract) =>
+      matchesContract(contract, implementationKey),
+    )
+    if (proxyMatches.length !== 1 || implementationMatches.length !== 1) {
+      const which = proxyMatches.length !== 1 ? proxyKey : implementationKey
+      warnings.push(`Proxy mapping "${proxyKey}" -> "${implementationKey}": "${which}" did not match exactly one contract.`)
+      continue
+    }
+    proxyMatches[0].proxyTargetId = implementationMatches[0].id
+  }
+}
+
+function matchesContract(contract: ContractDoc, key: string): boolean {
+  return (
+    contract.id === key ||
+    contract.name === key ||
+    `${contract.file}:${contract.name}` === key
+  )
+}
+
+async function buildPages(
+  root: string,
+  pages: ScdocsConfig['pages'],
+  warnings: string[],
+): Promise<DocsPage[]> {
+  if (!pages?.length) return []
+
+  const out: DocsPage[] = []
+  const used = new Set<string>()
+
+  for (const [index, page] of pages.entries()) {
+    let source = page.content ?? ''
+    if (page.file) {
+      try {
+        source = await readFile(resolve(root, page.file), 'utf8')
+      } catch (error) {
+        warnings.push(`Could not read docs page "${page.file}": ${String(error)}`)
+        continue
+      }
+    }
+    if (!source.trim()) {
+      warnings.push(`Docs page "${page.title ?? page.file ?? index}" is empty.`)
+      continue
+    }
+
+    const heading = /^#\s+(.+?)\s*$/m.exec(source)?.[1]
+    const title = page.title ?? heading ?? page.file ?? `Page ${index + 1}`
+    let slug = slugify(page.slug ?? (page.file ? basename(page.file, extname(page.file)) : title))
+    if (!slug) slug = `page-${index + 1}`
+    if (used.has(slug)) {
+      let suffix = 2
+      while (used.has(`${slug}-${suffix}`)) suffix += 1
+      slug = `${slug}-${suffix}`
+    }
+    used.add(slug)
+
+    out.push({
+      slug,
+      title,
+      description: page.description,
+      html: renderMarkdown(source),
+      file: page.file,
+    })
+  }
+
+  return out
 }
 
 function buildChains(

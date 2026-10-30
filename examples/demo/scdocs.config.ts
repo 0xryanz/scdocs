@@ -37,7 +37,21 @@ export default {
     },
   ],
 
-  // Demo site opens every form so the playground is visible immediately.
-  // Drop this (or toggle it in Settings) for a reading-first docs page.
-  ui: { expandAll: true },
+  // Authored pages show up above the contract list in the sidebar.
+  pages: [
+    { title: 'Overview', file: 'docs/overview.md', description: 'What DemoToken is and what this site can do.' },
+    { title: 'Architecture', file: 'docs/architecture.md' },
+    { title: 'Deployment', file: 'docs/deployment.md' },
+  ],
+
+  // Sidebar order. Unlisted contracts keep alphabetical order after these.
+  order: ['DemoToken'],
+
+  brand: {
+    color: '#f97316',
+    footer: 'Demo docs · built with scdocs',
+  },
+
+  // Reading-first by default: method forms start collapsed.
+  // Set `ui: { expandAll: true }` (or use the Settings drawer) to open them all.
 }

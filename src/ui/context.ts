@@ -26,6 +26,7 @@ export interface DocsContextValue {
   addressFor(contract: ContractDoc): Hex | undefined
   setAddressFor(contractId: string, address: string): void
   savedAddressFor(contract: ContractDoc): Hex | undefined
+  openContract(contractId: string, anchor?: string): void
   expandAll: boolean
   notify(message: string, kind?: 'info' | 'error'): void
 }

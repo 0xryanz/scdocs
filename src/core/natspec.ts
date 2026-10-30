@@ -101,7 +101,7 @@ function tidy(text: string | undefined): string | undefined {
 function readMethod(dev: unknown, user: unknown): MethodNatspec {
   const d = asObject(dev)
   const u = asObject(user)
-  const params: Record<string, string> = {}
+  const params: Record<string, string> = Object.create(null)
   const custom: Record<string, string> = {}
 
   const devParams = asObject(d?.params)
@@ -125,7 +125,9 @@ function readGroup(
   user: unknown,
   unpack: (v: unknown) => unknown,
 ): Record<string, MethodNatspec> {
-  const out: Record<string, MethodNatspec> = {}
+  // Null prototype: ABI names such as `toString` or `constructor` must not
+  // resolve to Object.prototype members when used as lookup keys.
+  const out: Record<string, MethodNatspec> = Object.create(null)
   const devMap = asObject(dev) ?? {}
   const userMap = asObject(user) ?? {}
   const keys = new Set([...Object.keys(devMap), ...Object.keys(userMap)])
@@ -168,8 +170,8 @@ export function mergeMethods(primary: MethodNatspec, secondary: MethodNatspec): 
   return {
     summary: primary.summary ?? secondary.summary,
     description: primary.description ?? secondary.description,
-    params: { ...secondary.params, ...primary.params },
-    returns: primary.returns.length > 0 ? primary.returns : secondary.returns,
+    params: Object.assign(Object.create(null), secondary.params, primary.params),
+    returns: primary.returns?.length > 0 ? primary.returns : (secondary.returns ?? []),
     custom: { ...secondary.custom, ...primary.custom },
     documented: primary.documented || secondary.documented,
   }
