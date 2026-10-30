@@ -1,0 +1,99 @@
+name: Publish
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to publish, e.g. v0.1.0 (must match package.json)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  id-token: write
+
+concurrency:
+  group: npm-publish-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          # Never reuse a package-manager cache in a release build.
+          package-manager-cache: false
+
+      # Trusted publishing needs npm CLI 11.5.1+; install the current npm so
+      # the workflow does not depend on the version bundled with Node.
+      - name: Update npm
+        run: npm install -g npm@latest
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify release tag
+        run: |
+          TAG="${RELEASE_TAG#v}"
+          VERSION=$(node -p "require('./package.json').version")
+          if [ "$TAG" != "$VERSION" ]; then
+            echo "::error::Tag ${RELEASE_TAG} does not match package.json version ${VERSION}."
+            exit 1
+          fi
+          echo "Publishing scdocs@${VERSION} from tag ${RELEASE_TAG}."
+
+      - name: Typecheck, build and test
+        run: |
+          npm run typecheck
+          npm run build
+          npm run build:ui
+          npx tsx scripts/check-hardhat.ts
+
+      - name: Check version availability
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          if npm view "scdocs@${VERSION}" version >/dev/null 2>&1; then
+            echo "::error::scdocs@${VERSION} is already published."
+            exit 1
+          fi
+
+      # Preferred setup: npm Trusted Publisher (OIDC), no long-lived secret.
+      # Fallback: add an NPM_TOKEN secret with a granular token that has
+      # "bypass 2FA" enabled. If the secret is absent, trusted publishing is
+      # used and the package must be configured on npmjs.com.
+      - name: Configure npm token fallback
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -n "${NPM_TOKEN}" ]; then
+            npm config set //registry.npmjs.org/:_authToken "${NPM_TOKEN}"
+          fi
+
+      - name: Publish to npm
+        run: npm publish --access public
+
+      - name: Create GitHub release
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
+            echo "Release ${RELEASE_TAG} already exists."
+          else
+            gh release create "${RELEASE_TAG}" --generate-notes --verify-tag
+          fi
