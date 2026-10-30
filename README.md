@@ -20,18 +20,35 @@ endpoint, and `msg.sender` / `msg.value` have no HTTP equivalent. So the ABI is
 turned into an OpenAPI-shaped document for *reading* and agent/codegen use, but
 the interactive page encodes against the ABI directly and signs client-side.
 
+## Install
+
+Requires Node.js 20+.
+
+```bash
+npm install -g scdocs
+scdocs --help
+```
+
+Or run it without a global install:
+
+```bash
+npx scdocs@latest --help
+```
+
+The package is published on npm as [`scdocs`](https://www.npmjs.com/package/scdocs).
+
 ## Quick start
 
 ```bash
 # Foundry
 forge build
-npx scdocs init                  # writes scdocs.config.ts + npm scripts
+scdocs init                      # writes scdocs.config.ts + npm scripts
 npm run docs:build               # → ./scdocs-site
 npm run docs:serve               # → http://localhost:8080
 
 # Hardhat
 npx hardhat compile
-npx scdocs init
+scdocs init
 npm run docs:build
 ```
 
