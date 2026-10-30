@@ -13,13 +13,6 @@ Hardhat build- ┘                              └─→ openapi.json
 info/
 ```
 
-## Why not just Swagger UI
-
-Swagger's "Try it out" sends HTTP. A contract call needs a signature and an RPC
-endpoint, and `msg.sender` / `msg.value` have no HTTP equivalent. So the ABI is
-turned into an OpenAPI-shaped document for *reading* and agent/codegen use, but
-the interactive page encodes against the ABI directly and signs client-side.
-
 ## Install
 
 Requires Node.js 20+.
