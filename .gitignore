@@ -1,0 +1,8 @@
+node_modules/
+dist/
+scdocs-site/
+examples/*/site/
+examples/*/out/
+examples/*/cache/
+*.log
+.DS_Store

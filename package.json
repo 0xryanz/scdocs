@@ -1,0 +1,45 @@
+{
+  "name": "scdocs",
+  "version": "0.1.0",
+  "description": "Turn Solidity artifacts into a Swagger-like, wallet-connected contract playground.",
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "scdocs": "./dist/cli.js"
+  },
+  "exports": {
+    ".": "./dist/index.js",
+    "./config": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "index.html",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "build:ui": "vite build",
+    "dev": "tsx src/cli/index.ts dev",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx scripts/check-hardhat.ts && tsx scripts/smoke.ts",
+    "demo": "tsx src/cli/index.ts build --root examples/demo --out examples/demo/site"
+  },
+  "dependencies": {
+    "jiti": "^2.4.2",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "viem": "^2.21.0",
+    "vite": "^6.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "tsup": "^8.3.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
