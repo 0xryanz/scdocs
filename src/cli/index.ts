@@ -10,6 +10,7 @@ import {
 } from 'node:fs/promises'
 import { createServer as createHttpServer } from 'node:http'
 import { existsSync } from 'node:fs'
+import { homedir } from 'node:os'
 import { basename, dirname, extname, isAbsolute, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { DocsBundle } from '../shared/types.js'
@@ -457,9 +458,14 @@ async function cmdInit(flags: Flags): Promise<void> {
     throw new Error(`${configPath} already exists. Use --force to overwrite it.`)
   }
 
+  // `--root` may point at a contracts subdirectory, so the package.json that
+  // owns the npm scripts can live in a parent (repo root) instead.
+  const packageRoot = findPackageRoot(cwd)
+  const projectRoot = packageRoot ?? cwd
+
   const title =
     str(flags, 'title') ??
-    (await packageTitle(cwd)) ??
+    (packageRoot ? await packageTitle(packageRoot) : undefined) ??
     basename(cwd)
 
   const config = [
@@ -473,18 +479,27 @@ async function cmdInit(flags: Flags): Promise<void> {
   ].join('\n')
   await writeFile(configPath, config)
 
-  await ensureGitignore(cwd)
-  const scripts = await ensureDocsScripts(cwd, contractsRoot)
+  await ensureGitignore(projectRoot)
+  const scripts = await ensureDocsScripts(packageRoot, contractsRoot)
 
-  const relRoot = relative(cwd, contractsRoot) || '.'
+  const relRoot = relative(projectRoot, contractsRoot) || '.'
   console.log(`${c.green('✓')} wrote ${configPath}`)
   console.log(`${c.dim('  framework')} ${framework}`)
   console.log(`${c.dim('  root     ')} ${contractsRoot}`)
-  if (scripts.length) console.log(`${c.dim('  scripts  ')} ${scripts.join(', ')}`)
+  if (scripts.added.length) {
+    console.log(`${c.dim('  scripts  ')} ${scripts.added.join(', ')}`)
+    console.log(`${c.dim('  package  ')} ${join(packageRoot!, 'package.json')}`)
+  }
+  if (scripts.warning) console.log(c.yellow(`  ! ${scripts.warning}`))
   console.log(`\n${c.bold('Next')}`)
   console.log(`  1. ${framework === 'foundry' ? 'forge build' : 'npx hardhat compile'}`)
-  console.log(`  2. npm run docs:build   ${c.dim(`# scdocs build --root ${relRoot} --out scdocs-site`)}`)
-  console.log('  3. npm run docs:serve')
+  if (scripts.ready) {
+    console.log(`  2. npm run docs:build   ${c.dim(`# scdocs build --root ${relRoot} --out scdocs-site`)}`)
+    console.log('  3. npm run docs:serve')
+  } else {
+    console.log(`  2. scdocs build --root ${relRoot} --out scdocs-site`)
+    console.log('  3. scdocs serve --dir scdocs-site')
+  }
 }
 
 async function cmdDoctor(flags: Flags): Promise<void> {
@@ -629,6 +644,23 @@ async function packageTitle(dir: string): Promise<string | undefined> {
   }
 }
 
+/**
+ * Finds the package.json that should own the docs scripts. Starts at the
+ * contracts root and walks up, but never past the repository root or $HOME.
+ */
+function findPackageRoot(start: string): string | undefined {
+  let dir = resolve(start)
+  const home = homedir()
+  for (;;) {
+    if (dir === home) return undefined
+    if (existsSync(join(dir, 'package.json'))) return dir
+    if (existsSync(join(dir, '.git'))) return undefined
+    const parent = dirname(dir)
+    if (parent === dir) return undefined
+    dir = parent
+  }
+}
+
 async function ensureGitignore(projectRoot: string): Promise<void> {
   const path = join(projectRoot, '.gitignore')
   let text = ''
@@ -644,30 +676,42 @@ async function ensureGitignore(projectRoot: string): Promise<void> {
 }
 
 async function ensureDocsScripts(
-  projectRoot: string,
+  packageRoot: string | undefined,
   contractsRoot: string,
-): Promise<string[]> {
-  const path = join(projectRoot, 'package.json')
+): Promise<{ added: string[]; ready: boolean; warning?: string }> {
+  if (!packageRoot) {
+    return {
+      added: [],
+      ready: false,
+      warning: 'no package.json found; skipped docs:build/docs:serve scripts',
+    }
+  }
+
+  const path = join(packageRoot, 'package.json')
   let pkg: { scripts?: Record<string, string> } & Record<string, unknown>
   try {
     pkg = JSON.parse(await readFile(path, 'utf8'))
-  } catch {
-    return []
+  } catch (error) {
+    return {
+      added: [],
+      ready: false,
+      warning: `could not update ${path}: ${(error as Error).message}`,
+    }
   }
   const scripts = { ...(pkg.scripts ?? {}) }
   const added: string[] = []
   if (!scripts['docs:build']) {
-    scripts['docs:build'] = `scdocs build --root ${relative(projectRoot, contractsRoot) || '.'} --out scdocs-site`
+    scripts['docs:build'] = `scdocs build --root ${relative(packageRoot, contractsRoot) || '.'} --out scdocs-site`
     added.push('docs:build')
   }
   if (!scripts['docs:serve']) {
     scripts['docs:serve'] = 'scdocs serve --dir scdocs-site --port 8080'
     added.push('docs:serve')
   }
-  if (added.length === 0) return []
+  if (added.length === 0) return { added, ready: true }
   pkg.scripts = scripts
   await writeFile(path, `${JSON.stringify(pkg, null, 2)}\n`)
-  return added
+  return { added, ready: true }
 }
 
 /* --------------------------------- helpers -------------------------------- */
