@@ -5,16 +5,28 @@ import { shortAddress } from '../lib/format'
 import { BUILTINS } from '../lib/chains'
 import { Icon } from './Icon'
 
+const IS_MAC =
+  typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/.test(navigator.platform ?? '')
+
 interface TopBarProps {
   bundle: DocsBundle
   chain: ChainDoc
   chainKey: string
   onChainKey(key: string): void
   onOpenSettings(): void
+  onOpenSearch(): void
   onToggleSidebar(): void
 }
 
-export function TopBar({ bundle, chain, chainKey, onChainKey, onOpenSettings, onToggleSidebar }: TopBarProps) {
+export function TopBar({
+  bundle,
+  chain,
+  chainKey,
+  onChainKey,
+  onOpenSettings,
+  onOpenSearch,
+  onToggleSidebar,
+}: TopBarProps) {
   const ctx = useDocs()
   const [chainMenu, setChainMenu] = useState(false)
   const [walletMenu, setWalletMenu] = useState(false)
@@ -58,6 +70,17 @@ export function TopBar({ bundle, chain, chainKey, onChainKey, onOpenSettings, on
         />
         <div className="brand-name">{bundle.title}</div>
       </div>
+
+      <button
+        className="btn btn-search"
+        onClick={onOpenSearch}
+        title="Search docs"
+        aria-label="Search docs"
+      >
+        <Icon name="search" size={14} />
+        <span className="btn-search-label">Search</span>
+        <kbd className="kbd btn-search-kbd">{IS_MAC ? '⌘K' : 'Ctrl K'}</kbd>
+      </button>
 
       <div className="topbar-spacer" />
 

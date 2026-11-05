@@ -1,4 +1,4 @@
-import type { FunctionDoc } from '../../shared/types'
+import type { ErrorDoc, EventDoc, FunctionDoc } from '../../shared/types'
 
 export function shortAddress(address?: string, size = 4): string {
   if (!address) return ''
@@ -66,6 +66,15 @@ export function castSignature(fn: FunctionDoc): string {
 /** The DOM id FunctionCard uses, shared with the method navigation. */
 export function functionAnchor(fn: FunctionDoc): string {
   return `fn-${fn.selector.slice(2)}`
+}
+
+/** DOM ids so global search can jump to an event or error row. */
+export function eventAnchor(event: EventDoc): string {
+  return `event-${event.topic0.slice(2)}`
+}
+
+export function errorAnchor(error: ErrorDoc): string {
+  return `error-${error.selector.slice(2)}`
 }
 
 export function castCommand(

@@ -1,6 +1,6 @@
 {
   "name": "scdocs",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Turn Solidity artifacts into a Swagger-like, wallet-connected contract playground.",
   "type": "module",
   "license": "MIT",

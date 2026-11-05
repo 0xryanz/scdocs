@@ -72,6 +72,7 @@ non-zero exit when the build would be empty.
 | Authored Overview / Architecture / Deployment pages | `pages` in config (Markdown) |
 | Sidebar order, brand color, logo, footer | `order`, `brand` |
 | Deep links to contract, method or page | generated hash routes |
+| Global search across pages, contracts, methods, events and errors | `⌘K` / `Ctrl K` |
 | EIP-1967 proxy detection | live `eth_getStorageAt` + `proxies` mapping |
 | Event log viewer | live `eth_getLogs` |
 | Call-as simulation and multicall reads | live RPC |

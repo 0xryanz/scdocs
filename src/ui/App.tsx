@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ContractDoc, DocsBundle, Hex } from '../shared/types'
 import { DocsContext, type DocsContextValue } from './context'
 import { ContractView } from './components/ContractView'
+import { GlobalSearch } from './components/GlobalSearch'
 import { Icon } from './components/Icon'
 import { PageView } from './components/PageView'
 import { SettingsDrawer } from './components/Settings'
@@ -90,6 +91,7 @@ function DocsApp({ bundle }: { bundle: DocsBundle }) {
   )
   const [navNonce, setNavNonce] = useState(0)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [searchOpen, setSearchOpen] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [toasts, setToasts] = useState<Toast[]>([])
 
@@ -124,6 +126,16 @@ function DocsApp({ bundle }: { bundle: DocsBundle }) {
   useEffect(() => {
     applyTheme(settings.theme)
   }, [settings.theme])
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== 'k') return
+      event.preventDefault()
+      setSearchOpen((prev) => !prev)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [])
 
   const notify = useCallback((message: string, kind: 'info' | 'error' = 'info') => {
     const id = Date.now() + Math.random()
@@ -281,6 +293,7 @@ function DocsApp({ bundle }: { bundle: DocsBundle }) {
           chainKey={chainKey}
           onChainKey={(key) => setSettings((prev) => ({ ...prev, chainKey: key }))}
           onOpenSettings={() => setSettingsOpen(true)}
+          onOpenSearch={() => setSearchOpen(true)}
           onToggleSidebar={() => setSidebarOpen((prev) => !prev)}
         />
 
@@ -336,6 +349,14 @@ function DocsApp({ bundle }: { bundle: DocsBundle }) {
           </div>
         </main>
       </div>
+
+      <GlobalSearch
+        bundle={bundle}
+        open={searchOpen}
+        onClose={() => setSearchOpen(false)}
+        onNavigate={navigate}
+        onNavigatePage={navigatePage}
+      />
 
       {settingsOpen ? (
         <SettingsDrawer

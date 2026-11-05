@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ContractDoc, ErrorDoc, EventDoc, FunctionDoc } from '../../shared/types'
 import { useDocs } from '../context'
-import { functionAnchor, isAddress } from '../lib/format'
+import { errorAnchor, eventAnchor, functionAnchor, isAddress } from '../lib/format'
 import { contractRoute, writeRoute } from '../lib/hash'
 import { FunctionCard } from './FunctionCard'
 import { Icon } from './Icon'
@@ -414,7 +414,7 @@ function AddressBar({ contract }: { contract: ContractDoc }) {
 
 function EventCard({ contract, event }: { contract: ContractDoc; event: EventDoc }) {
   return (
-    <div className="event">
+    <div className="event" id={eventAnchor(event)}>
       <div className="event-sig">
         <span className="ev-name">{event.name}</span>
         <span className="fn-paren">(</span>
@@ -449,7 +449,7 @@ function EventCard({ contract, event }: { contract: ContractDoc; event: EventDoc
 
 function ErrorRow({ error }: { error: ErrorDoc }) {
   return (
-    <div className="event">
+    <div className="event" id={errorAnchor(error)}>
       <div className="event-sig">
         <span className="ev-name" style={{ color: 'var(--danger)' }}>
           {error.name}
