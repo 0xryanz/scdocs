@@ -1086,6 +1086,12 @@ pre.raw {
   background: var(--accent-soft);
   border-color: color-mix(in srgb, var(--accent) 25%, transparent);
 }
+.code-tab-sep {
+  width: 1px;
+  height: 13px;
+  margin: 0 3px;
+  background: var(--border);
+}
 
 .code-panel {
   border: 1px solid var(--code-border);

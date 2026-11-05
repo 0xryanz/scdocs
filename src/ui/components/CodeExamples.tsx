@@ -1,4 +1,4 @@
-import { useMemo, useSyncExternalStore } from 'react'
+import { useMemo, useState, useSyncExternalStore } from 'react'
 import type { ContractDoc, FunctionDoc } from '../../shared/types'
 import { useDocs } from '../context'
 import type { FormValue } from '../lib/coerce'
@@ -69,9 +69,18 @@ export function CodeExamples({
   )
 
   const framework = useSyncExternalStore(subscribeFramework, getFramework, () => 'viem')
+  const [showAbi, setShowAbi] = useState(false)
+
+  const abiJson = useMemo(() => JSON.stringify(fn.abi, null, 2), [fn.abi])
 
   const active = set.items.find((item) => item.id === framework) ?? set.items[0]
   if (!active) return null
+
+  // The ABI tab shows the exact fragment for this overload, ready to paste into
+  // `abi.ts` or a cast/viem call.
+  const view = showAbi
+    ? { file: `${fn.name}.abi.json`, language: 'json', code: abiJson }
+    : active
 
   return (
     <section className="examples" aria-label="Contract call examples">
@@ -80,34 +89,50 @@ export function CodeExamples({
           <Icon name="braces" size={13} />
           Call examples
         </span>
-        <span className="hint">TypeScript · mirrors the values above</span>
+        <span className="hint">
+          {showAbi ? 'JSON · exact fragment for this method' : 'TypeScript · mirrors the values above'}
+        </span>
       </div>
 
-      <div className="code-tabs" role="tablist" aria-label="Example framework">
+      <div className="code-tabs" role="tablist" aria-label="Example framework and method ABI">
         {set.items.map((item) => (
           <button
             key={item.id}
             type="button"
             role="tab"
-            aria-selected={item.id === active.id}
-            className={`code-tab${item.id === active.id ? ' active' : ''}`}
-            onClick={() => selectFramework(item.id)}
+            aria-selected={!showAbi && item.id === active.id}
+            className={`code-tab${!showAbi && item.id === active.id ? ' active' : ''}`}
+            onClick={() => {
+              selectFramework(item.id)
+              setShowAbi(false)
+            }}
           >
             {item.label}
           </button>
         ))}
+        <span className="code-tab-sep" aria-hidden="true" />
+        <button
+          type="button"
+          role="tab"
+          aria-selected={showAbi}
+          className={`code-tab abi-tab${showAbi ? ' active' : ''}`}
+          title="The exact ABI fragment for this method"
+          onClick={() => setShowAbi((prev) => !prev)}
+        >
+          ABI
+        </button>
       </div>
 
       <div className="code-panel">
         <div className="code-panel-head">
-          <span className="code-file">{active.file}</span>
-          <span className="badge code-lang">{active.language}</span>
+          <span className="code-file">{view.file}</span>
+          <span className="badge code-lang">{view.language}</span>
           <span className="spacer" />
-          <CopyButton text={active.code} label="copy code" />
+          <CopyButton text={view.code} label="copy code" />
         </div>
         <pre className="code-pre" tabIndex={0}>
           <code>
-            {active.code.split('\n').map((line, index) => (
+            {view.code.split('\n').map((line, index) => (
               <CodeLine key={index} number={index + 1} line={line} />
             ))}
           </code>
@@ -115,11 +140,17 @@ export function CodeExamples({
       </div>
 
       <div className="examples-foot">
-        <span>
-          ABI: <code>{set.abiName}</code> from <code>./abi</code>
-        </span>
+        {showAbi ? (
+          <span>
+            selector <code>{fn.selector}</code> · {fn.signature}
+          </span>
+        ) : (
+          <span>
+            ABI: <code>{set.abiName}</code> from <code>./abi</code>
+          </span>
+        )}
         <span className="spacer" />
-        <code>{active.install}</code>
+        {showAbi ? <span>paste into an ABI array</span> : <code>{active.install}</code>}
       </div>
     </section>
   )
