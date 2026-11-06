@@ -187,6 +187,10 @@ it at a hosted asset or a data URL.
 networks (Ethereum, Base, Arbitrum, OP, Polygon, Sepolia, Anvil…). Everything
 below adapts: the RPC, the explorer links and the default contract addresses.
 
+**Project links** — the bottom of the sidebar is pinned and always shows the
+source repository (GitHub icon + address, click to open) and the project's fixed
+donation address with a copy button.
+
 **Address override** — an address field sits under every contract title. Paste a
 freshly deployed address and the whole page retargets, no rebuild. Overrides are
 remembered per chain in `localStorage`.

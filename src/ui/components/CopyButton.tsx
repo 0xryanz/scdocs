@@ -5,10 +5,13 @@ export function CopyButton({
   text,
   label,
   className = 'btn btn-ghost btn-sm',
+  iconOnly = false,
 }: {
   text: string
   label?: string
   className?: string
+  /** Icon-only affordance, for tight layouts such as the sidebar footer. */
+  iconOnly?: boolean
 }) {
   const [copied, setCopied] = useState(false)
 
@@ -29,7 +32,7 @@ export function CopyButton({
       onClick={copy}
     >
       <Icon name={copied ? 'check' : 'copy'} size={12} />
-      {copied ? 'copied' : (label ?? 'copy')}
+      {iconOnly ? null : copied ? 'copied' : (label ?? 'copy')}
     </button>
   )
 }
