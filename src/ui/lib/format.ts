@@ -6,8 +6,34 @@ export function shortAddress(address?: string, size = 4): string {
   return `${address.slice(0, 2 + size)}…${address.slice(-size)}`
 }
 
+/** Characters that render as nothing but silently break naive hex checks. */
+const INVISIBLE = /[\u00ad\u180e\u200b-\u200f\u2060-\u2064\ufeff]/g
+
+/**
+ * Normalise a machine-readable token (address, hex, integer) to plain ASCII.
+ *
+ * Input methods and clipboards are the two places bad characters come from:
+ * a Chinese IME in full-width mode turns `0x…` into `０ｘ…`, and copied text
+ * often carries invisible zero-width characters. NFKC folds the former back,
+ * the regex drops the latter, so a visually-correct value stops being rejected
+ * as "not a 20-byte address".
+ */
+export function normalizeToken(value: string): string {
+  // Only trim the ends: silently gluing "0xab cd" into an address would hide a
+  // paste mistake instead of reporting it.
+  const text = value.normalize('NFKC').replace(INVISIBLE, '').trim()
+  return text.startsWith('0X') ? `0x${text.slice(2)}` : text
+}
+
 export function isAddress(value: unknown): value is `0x${string}` {
-  return typeof value === 'string' && /^0x[0-9a-fA-F]{40}$/.test(value)
+  return asAddress(value) !== undefined
+}
+
+/** Like isAddress, but returns the normalised ASCII form to hand to viem. */
+export function asAddress(value: unknown): `0x${string}` | undefined {
+  if (typeof value !== 'string') return undefined
+  const normalized = normalizeToken(value)
+  return /^0x[0-9a-fA-F]{40}$/.test(normalized) ? (normalized as `0x${string}`) : undefined
 }
 
 /** JSON.stringify throws on bigint — everything rendered as text goes through here. */

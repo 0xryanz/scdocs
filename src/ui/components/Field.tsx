@@ -9,17 +9,25 @@ interface FieldProps {
   value: FormValue | undefined
   onChange(next: FormValue): void
   label?: string
+  /** Set after a failed submit so empty required fields light up immediately. */
+  showErrors?: boolean
 }
 
-export function Field({ param, value, onChange, label }: FieldProps) {
+export function Field({ param, value, onChange, label, showErrors = false }: FieldProps) {
   const name = label ?? param.name ?? ''
   if (param.element) {
-    return <ArrayField param={param} value={value} onChange={onChange} label={name} />
+    return (
+      <ArrayField param={param} value={value} onChange={onChange} label={name} showErrors={showErrors} />
+    )
   }
   if (param.components) {
-    return <TupleField param={param} value={value} onChange={onChange} label={name} />
+    return (
+      <TupleField param={param} value={value} onChange={onChange} label={name} showErrors={showErrors} />
+    )
   }
-  return <ScalarField param={param} value={value} onChange={onChange} label={name} />
+  return (
+    <ScalarField param={param} value={value} onChange={onChange} label={name} showErrors={showErrors} />
+  )
 }
 
 function FieldLabel({ name, param }: { name: string; param: ParamDoc }) {
@@ -46,7 +54,7 @@ export function friendlyType(param: ParamDoc): string {
   return kind ? `${kind} ${name}${suffix}` : `${name}${suffix}`
 }
 
-function ArrayField({ param, value, onChange, label }: Required<FieldProps>) {
+function ArrayField({ param, value, onChange, label, showErrors }: Required<FieldProps>) {
   const items = Array.isArray(value) ? (value as FormValue[]) : []
   const fixed = FIXED_ARRAY.exec(param.type)
   const size = fixed ? Number(fixed[1]) : null
@@ -79,6 +87,7 @@ function ArrayField({ param, value, onChange, label }: Required<FieldProps>) {
               param={element}
               value={item}
               label={element.name || `[${index}]`}
+              showErrors={showErrors}
               onChange={(next) => {
                 const copy = [...items]
                 copy[index] = next
@@ -114,7 +123,7 @@ function ArrayField({ param, value, onChange, label }: Required<FieldProps>) {
   )
 }
 
-function TupleField({ param, value, onChange, label }: Required<FieldProps>) {
+function TupleField({ param, value, onChange, label, showErrors }: Required<FieldProps>) {
   const source =
     value && typeof value === 'object' && !Array.isArray(value)
       ? (value as Record<string, FormValue>)
@@ -132,6 +141,7 @@ function TupleField({ param, value, onChange, label }: Required<FieldProps>) {
               param={component}
               label={component.name || `#${index}`}
               value={source[key]}
+              showErrors={showErrors}
               onChange={(next) => onChange({ ...source, [key]: next })}
             />
           )
@@ -141,9 +151,11 @@ function TupleField({ param, value, onChange, label }: Required<FieldProps>) {
   )
 }
 
-function ScalarField({ param, value, onChange, label }: Required<FieldProps>) {
+function ScalarField({ param, value, onChange, label, showErrors }: Required<FieldProps>) {
   const text = typeof value === 'string' ? value : ''
-  const error = text.trim() !== '' ? fieldError(param, text) : null
+  // Validate on the fly once the user starts typing; otherwise wait until a
+  // submit was attempted, so an untouched form is not a wall of red.
+  const error = text.trim() !== '' || showErrors ? fieldError(param, text) : null
   const invalid = error ? ' invalid' : ''
 
   if (param.type === 'bool') {
@@ -177,6 +189,10 @@ function ScalarField({ param, value, onChange, label }: Required<FieldProps>) {
           value={text}
           rows={3}
           spellCheck={false}
+          aria-invalid={error ? true : undefined}
+          autoCapitalize="off"
+          autoCorrect="off"
+          autoComplete="off"
           placeholder="0x…"
           onChange={(event) => onChange(event.target.value)}
         />
@@ -185,6 +201,10 @@ function ScalarField({ param, value, onChange, label }: Required<FieldProps>) {
           className={`input${invalid}`}
           value={text}
           spellCheck={false}
+          aria-invalid={error ? true : undefined}
+          autoCapitalize="off"
+          autoCorrect="off"
+          autoComplete="off"
           inputMode={/^u?int/.test(param.type) ? 'numeric' : 'text'}
           placeholder={placeholderFor(param.type)}
           onChange={(event) => onChange(event.target.value)}

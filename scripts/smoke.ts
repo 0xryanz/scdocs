@@ -176,6 +176,41 @@ async function main() {
       '0x' + '11'.repeat(32),
     )
 
+    console.log('\ninput normalisation (IME + clipboard)')
+    const balanceOf = byName('balanceOf')
+    const fullWidth = (text: string) =>
+      [...text]
+        .map((char) => {
+          const code = char.charCodeAt(0)
+          return code >= 0x21 && code <= 0x7e ? String.fromCharCode(code + 0xfee0) : char
+        })
+        .join('')
+    eq('full-width IME address', coerceArgs(balanceOf.inputs, [fullWidth(OTHER)]), [OTHER])
+    eq(
+      'zero-width characters stripped',
+      coerceArgs(balanceOf.inputs, [`0x${'ab'.repeat(20)}\u200b`]),
+      [`0x${'ab'.repeat(20)}`],
+    )
+    eq(
+      'stray whitespace stripped',
+      coerceArgs(balanceOf.inputs, [` 0x${'ab'.repeat(20)}\n`]),
+      [`0x${'ab'.repeat(20)}`],
+    )
+    let rejection = ''
+    try {
+      coerceArgs(balanceOf.inputs, ['0x1234'])
+    } catch (error) {
+      rejection = (error as Error).message
+    }
+    check('bad address error reports the input length', /got 6 characters/.test(rejection), rejection)
+    let empty = ''
+    try {
+      coerceArgs(balanceOf.inputs, [''])
+    } catch (error) {
+      empty = (error as Error).message
+    }
+    check('empty address says "is required"', /is required/.test(empty), empty)
+
     console.log('\npayable call')
     await write(byName('buy'), [], 10n ** 18n) // 1 ETH -> 1000 tokens
     eq('buy() credited tokens', await read(byName('balanceOf'), [account.address]), 1000n)

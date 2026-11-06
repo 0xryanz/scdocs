@@ -378,6 +378,9 @@ function AddressBar({ contract }: { contract: ContractDoc }) {
         className={`address-input${valid ? '' : ' invalid'}`}
         value={draft}
         spellCheck={false}
+        autoCapitalize="off"
+        autoCorrect="off"
+        autoComplete="off"
         placeholder={
           ctx.chain.addresses[contract.id]
             ? 'address for this chain'

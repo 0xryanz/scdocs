@@ -12,7 +12,7 @@ import { getInjectedProvider, useWallet } from './lib/wallet'
 import { makePublicClient, makeWalletClient } from './lib/clients'
 import { initialChainKey, resolveChain, resolveExplorer, resolveRpc } from './lib/chains'
 import { loadBundle } from './lib/data'
-import { isAddress } from './lib/format'
+import { asAddress } from './lib/format'
 import { contractRoute, pageRoute, readRoute, writeRoute } from './lib/hash'
 import { addressKey, loadSettings, saveSettings, type Settings } from './lib/storage'
 
@@ -146,8 +146,7 @@ function DocsApp({ bundle }: { bundle: DocsBundle }) {
   const addressFor = useCallback(
     (contract: ContractDoc): Hex | undefined => {
       const override = settings.addresses[addressKey(chain.chainId, contract.id)]
-      const value = override ?? chain.addresses[contract.id]
-      return isAddress(value) ? value : undefined
+      return asAddress(override ?? chain.addresses[contract.id])
     },
     [settings.addresses, chain],
   )
@@ -155,7 +154,7 @@ function DocsApp({ bundle }: { bundle: DocsBundle }) {
   const savedAddressFor = useCallback(
     (contract: ContractDoc): Hex | undefined => {
       const override = settings.addresses[addressKey(chain.chainId, contract.id)]
-      return isAddress(override) ? override : undefined
+      return asAddress(override)
     },
     [settings.addresses, chain.chainId],
   )
@@ -166,7 +165,7 @@ function DocsApp({ bundle }: { bundle: DocsBundle }) {
         const key = addressKey(chain.chainId, contractId)
         const next = { ...prev.addresses }
         if (address.trim() === '') delete next[key]
-        else next[key] = address.trim()
+        else next[key] = asAddress(address) ?? address.trim()
         return { ...prev, addresses: next }
       })
     },

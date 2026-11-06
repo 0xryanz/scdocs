@@ -2,7 +2,8 @@ import { decodeAbiParameters, decodeErrorResult, type Abi } from 'viem'
 import type { ErrorDoc } from '../../shared/types'
 
 export interface DecodedError {
-  kind: 'rejected' | 'reason' | 'panic' | 'custom' | 'unknown'
+  /** `input` is a client-side validation failure, not a revert. */
+  kind: 'input' | 'rejected' | 'reason' | 'panic' | 'custom' | 'unknown'
   title: string
   detail?: string
   error?: ErrorDoc
@@ -66,6 +67,13 @@ function cleanMessage(message: string): string {
     .replace(/^the contract function "\w+" reverted with the following signature:\s*0x[0-9a-fA-F]{8}\s*/i, '')
     .replace(/^execution reverted: ?/i, '')
     .trim()
+}
+
+/** Short, human label for the badge above a failed call. */
+export function errorKindLabel(kind: DecodedError['kind']): string {
+  if (kind === 'custom') return 'reverted'
+  if (kind === 'input') return 'invalid input'
+  return kind
 }
 
 export function isUserRejection(error: unknown): boolean {

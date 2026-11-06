@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { encodeFunctionData, type Abi } from 'viem'
 import type { ContractDoc, FunctionDoc, Hex } from '../../shared/types'
 import { useDocs } from '../context'
@@ -9,8 +9,8 @@ import {
   type FormValue,
   type PayableUnit,
 } from '../lib/coerce'
-import { decodeRevert, type DecodedError } from '../lib/errors'
-import { castCommand, functionAnchor, isAddress, prettyJson } from '../lib/format'
+import { decodeRevert, errorKindLabel, type DecodedError } from '../lib/errors'
+import { asAddress, castCommand, functionAnchor, isAddress, prettyJson } from '../lib/format'
 import { contractRoute, readRoute, writeRoute } from '../lib/hash'
 import { CodeExamples } from './CodeExamples'
 import { CopyButton } from './CopyButton'
@@ -42,6 +42,9 @@ export function FunctionCard({ contract, fn }: { contract: ContractDoc; fn: Func
   const [showCast, setShowCast] = useState(false)
   const [showExamples, setShowExamples] = useState(false)
   const [callAs, setCallAs] = useState('')
+  // Bumped on every failed submit so empty fields can be flagged and focused.
+  const [attempt, setAttempt] = useState(0)
+  const bodyRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     setOpen(ctx.expandAll)
@@ -59,6 +62,18 @@ export function FunctionCard({ contract, fn }: { contract: ContractDoc; fn: Func
     const route = readRoute()
     if (route?.kind === 'contract' && route.anchor === functionAnchor(fn)) setOpen(true)
   }, [fn])
+
+  // After a rejected submit, jump to the field that needs attention instead of
+  // leaving the user to guess which of several inputs was empty.
+  useEffect(() => {
+    if (attempt === 0) return
+    const frame = requestAnimationFrame(() => {
+      bodyRef.current
+        ?.querySelector<HTMLElement>('.input.invalid, .textarea.invalid')
+        ?.focus()
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [attempt])
 
   const address = ctx.addressFor(contract)
   const busy = BUSY.includes(state.phase)
@@ -102,20 +117,21 @@ export function FunctionCard({ contract, fn }: { contract: ContractDoc; fn: Func
       args = coerceArgs(fn.inputs, values)
       if (fn.mutability === 'payable') msgValue = parseAmount(amount, unit)
     } catch (error) {
+      setAttempt((count) => count + 1)
       setState({
         phase: 'error',
-        error: { kind: 'unknown', title: 'Check the inputs', detail: (error as Error).message },
+        error: { kind: 'input', title: 'Check the inputs', detail: (error as Error).message },
       })
       return
     }
 
     if (isRead) {
-      const from = callAs.trim()
-      if (from && !isAddress(from)) {
+      const from = asAddress(callAs)
+      if (callAs.trim() && !from) {
         setState({
           phase: 'error',
           error: {
-            kind: 'unknown',
+            kind: 'input',
             title: 'Invalid call-as address',
             detail: 'Use a 0x-prefixed 20-byte address, or leave the field empty.',
           },
@@ -129,7 +145,7 @@ export function FunctionCard({ contract, fn }: { contract: ContractDoc; fn: Func
           abi: [fn.abi] as Abi,
           functionName: fn.name,
           args,
-          account: from ? (from as Hex) : ctx.account,
+          account: from ?? ctx.account,
         } as any)
         setState({ phase: 'ok', value: result })
       } catch (error) {
@@ -220,6 +236,7 @@ export function FunctionCard({ contract, fn }: { contract: ContractDoc; fn: Func
     setAmount('')
     setState({ phase: 'idle' })
     setShowRaw(false)
+    setAttempt(0)
   }
 
   async function copyLink() {
@@ -284,7 +301,7 @@ export function FunctionCard({ contract, fn }: { contract: ContractDoc; fn: Func
       {fn.summary ? <div className="fn-summary">{fn.summary}</div> : null}
 
       {open ? (
-        <div className="fn-body">
+        <div className="fn-body" ref={bodyRef}>
           {fn.description ? <div className="fn-dev">{fn.description}</div> : null}
           {fn.undocumented ? (
             <div className="hint" style={{ marginBottom: 12 }}>
@@ -300,6 +317,7 @@ export function FunctionCard({ contract, fn }: { contract: ContractDoc; fn: Func
                   param={param}
                   label={param.name || `arg${index}`}
                   value={values[index]}
+                  showErrors={attempt > 0}
                   onChange={(next) => {
                     const copy = [...values]
                     copy[index] = next
@@ -321,10 +339,14 @@ export function FunctionCard({ contract, fn }: { contract: ContractDoc; fn: Func
                 className={`input${callAs.trim() && !isAddress(callAs.trim()) ? ' invalid' : ''}`}
                 value={callAs}
                 spellCheck={false}
+                aria-label="Call as address (optional, not a method argument)"
+                autoCapitalize="off"
+                autoCorrect="off"
+                autoComplete="off"
                 placeholder={ctx.account ?? '0x… (optional)'}
                 onChange={(event) => setCallAs(event.target.value)}
               />
-              <span className="hint">simulate from this address</span>
+              <span className="hint">optional · not a method argument</span>
             </div>
           ) : null}
 
@@ -424,7 +446,7 @@ export function FunctionCard({ contract, fn }: { contract: ContractDoc; fn: Func
             <div className="result error">
               <div className="result-head">
                 <Icon name="alert" size={12} />
-                <span>{state.error.kind === 'custom' ? 'reverted' : state.error.kind}</span>
+                <span>{errorKindLabel(state.error.kind)}</span>
                 <span className="spacer" />
                 {state.hash ? <TxLink hash={state.hash} /> : null}
               </div>
