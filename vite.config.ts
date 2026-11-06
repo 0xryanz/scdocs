@@ -10,7 +10,18 @@ export default defineConfig({
     emptyOutDir: true,
     target: 'es2022',
     assetsInlineLimit: 8192,
-    rollupOptions: { output: { manualChunks: undefined } },
+    rollupOptions: {
+      output: {
+        // Keep the Ethereum client and React in their own cacheable chunks.
+        // The app shell is small; viem/ox is the bulk of the bundle.
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return undefined
+          if (/node_modules\/(viem|ox|abitype|@noble|@scure)\//.test(id)) return 'evm'
+          if (/node_modules\/(react|react-dom|scheduler)\//.test(id)) return 'react'
+          return undefined
+        },
+      },
+    },
   },
   server: { port: 5173 },
 })
